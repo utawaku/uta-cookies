@@ -1,0 +1,203 @@
+---
+
+---
+
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/assets/images/icon128.png" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Astro Browser Extension Builder</title>
+  </head>
+  <body class="bg-white text-zinc-950 dark:bg-zinc-950 dark:text-white">
+    <div class="w-56 gap-4 p-4">
+      <div class="text-center text-xl font-bold">
+        <h1>Uta Cookies</h1>
+      </div>
+      <div class="mt-2 flex flex-col gap-4">
+        <button
+          id="copy-button"
+          class="inline-flex items-center justify-center rounded-sm bg-zinc-950 px-4 py-2 text-sm font-medium text-white ring-zinc-100 transition-colors duration-150 hover:bg-zinc-900 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-white dark:text-zinc-950 dark:ring-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900 dark:focus-visible:ring-white dark:focus-visible:ring-offset-zinc-900"
+        >
+          쿠키 복사
+        </button>
+        <button
+          id="download-button"
+          class="inline-flex items-center justify-center rounded-sm bg-zinc-950 px-4 py-2 text-sm font-medium text-white ring-zinc-100 transition-colors duration-150 hover:bg-zinc-900 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-white dark:text-zinc-950 dark:ring-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900 dark:focus-visible:ring-white dark:focus-visible:ring-offset-zinc-900"
+        >
+          쿠키 파일 다운로드
+        </button>
+        <select
+          id="format-select"
+          class="inline-flex items-center justify-center rounded-sm bg-zinc-950 px-4 py-2 text-sm font-medium text-white ring-zinc-100 transition-colors duration-150 hover:bg-zinc-900 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-white dark:text-zinc-950 dark:ring-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900 dark:focus-visible:ring-white dark:focus-visible:ring-offset-zinc-900"
+        >
+          <option value="netscape">Netscape</option>
+          <option value="json">JSON</option>
+        </select>
+      </div>
+    </div>
+  </body>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      chrome.storage.local.get(["format"], (result) => {
+        const format = result.format;
+
+        if (format === "netscape") {
+          const select = document.getElementById("format-select");
+          const option = select?.querySelector(
+            'option[value="netscape"]'
+          ) as HTMLOptionElement;
+
+          option.selected = true;
+        } else if (format === "json") {
+          const select = document.getElementById("format-select");
+          const option = select?.querySelector(
+            'option[value="json"]'
+          ) as HTMLOptionElement;
+
+          option.selected = true;
+        }
+      });
+    });
+
+    document
+      .getElementById("format-select")
+      ?.addEventListener("change", (event) => {
+        const value = (event.target as HTMLSelectElement)?.value;
+
+        chrome.storage.local.set({ format: value });
+      });
+  </script>
+  <script>
+    document
+      .getElementById("copy-button")
+      ?.addEventListener("click", async () => {
+        const tab = await getCurrentTab();
+        const cookies = await getCookies(tab.url);
+
+        if (!cookies) {
+          return;
+        }
+
+        const format = getFormatType();
+
+        const cookiesString = getFormattedCookieString(cookies, format);
+
+        if (!cookiesString) {
+          return;
+        }
+
+        copyToClipboard(cookiesString);
+      });
+
+    document
+      .getElementById("download-button")
+      ?.addEventListener("click", async () => {
+        const tab = await getCurrentTab();
+        const cookies = await getCookies(tab.url);
+
+        if (!cookies) {
+          return;
+        }
+
+        const format = getFormatType();
+
+        const cookiesString = getFormattedCookieString(cookies, format);
+
+        if (!cookiesString) {
+          return;
+        }
+
+        downloadFile(cookiesString, format);
+      });
+
+    function getFormatType(): "netscape" | "json" {
+      const select = document.getElementById("format-select");
+      const option = select?.querySelector(
+        "option:checked"
+      ) as HTMLOptionElement;
+
+      return option.value as "netscape" | "json";
+    }
+
+    async function getCurrentTab() {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+
+      return tab;
+    }
+
+    async function getCookies(url: string | undefined) {
+      if (!url) {
+        return;
+      }
+
+      const cookies = await chrome.cookies.getAll({
+        url,
+      });
+
+      return cookies;
+    }
+
+    function jsonToNetscape(cookie: chrome.cookies.Cookie) {
+      const {
+        domain,
+        httpOnly,
+        path,
+        secure,
+        expirationDate,
+        name,
+        value,
+        sameSite,
+      } = cookie;
+
+      const netscapeCookie = `${domain}\t${httpOnly}\t${path}\t${secure}\t${expirationDate}\t${name}\t${value}\t${sameSite}`;
+
+      return netscapeCookie;
+    }
+
+    async function copyToClipboard(text: string) {
+      await navigator.clipboard.writeText(text);
+    }
+
+    const getFormattedCookieString = (
+      cookie: chrome.cookies.Cookie[],
+      format: "netscape" | "json"
+    ) => {
+      if (format === "netscape") {
+        return cookie.map(jsonToNetscape).join("\n");
+      } else if (format === "json") {
+        return JSON.stringify(cookie, null, 0);
+      }
+    };
+
+    function downloadFile(text: string, format: "netscape" | "json") {
+      if (format === "netscape") {
+        downloadNetscapeFile(text);
+      } else if (format === "json") {
+        downloadJsonFile(text);
+      }
+    }
+
+    function downloadNetscapeFile(text: string) {
+      const blob = new Blob([text], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "cookies.txt";
+      a.click();
+    }
+
+    function downloadJsonFile(text: string) {
+      const blob = new Blob([text], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "cookies.json";
+      a.click();
+    }
+  </script>
+</html>
