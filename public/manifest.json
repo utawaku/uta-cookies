@@ -7,7 +7,6 @@
   },
   "permissions": [
     "cookies",
-    "downloads",
     "storage",
     "tabs"
   ],
