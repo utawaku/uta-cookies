@@ -1,7 +1,7 @@
 {
   "name": "uta-cookies",
   "module": "bundler.ts",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "dependencies": {
     "@astrojs/tailwind": "^5.1.0",
     "astro": "4.2.7",
